@@ -1,14 +1,17 @@
 from keras.models import Model
 from keras.optimizers import Adam
-from keras.layers import Input, Dense, Concatenate, Flatten, Conv2D, MaxPooling2D
+from keras.layers import Input, Dense, Concatenate, Flatten, Conv2D, MaxPooling2D, BatchNormalization
+from keras.callbacks import EarlyStopping, TensorBoard, ModelCheckpoint
 
 
 class HyperfaceNetwork:
-    def __init__(self, lr, loss, loss_weights, metrics):
+    def __init__(self, lr, loss, loss_weights, metrics, batch_size, epochs):
         self.lr = lr
         self.loss = loss
         self.loss_weights = loss_weights
+        self.epochs = epochs
         self.metrics = metrics
+        self.batch_size = batch_size
         self.input_shape = (227, 227, 3)
         self.model = None
 
@@ -19,34 +22,42 @@ class HyperfaceNetwork:
         conv1 = Conv2D(filters=96, kernel_size=(11, 11), strides=(4, 4), padding='valid', activation='relu',
                        name='conv1')(input)
         pool1 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), name='pool1')(conv1)
+        # Batch Normalisation before passing it to the next layer
+        pool1 = BatchNormalization()(pool1)
 
         # Extracting low-level details from poo11 layer to fuse (concatenate) it later
         conv1a = Conv2D(filters=256, kernel_size=(4, 4), strides=(4, 4), activation='relu', name='conv1a')(pool1)
+        conv1a = BatchNormalization()(conv1a)
 
         # Second Convolution
         conv2 = Conv2D(filters=256, kernel_size=(5, 5), strides=(1, 1), padding='same', activation='relu',
                        name='conv2')(pool1)
         pool2 = MaxPooling2D(pool_size=(2, 2), strides=(2, 2), name='pool2')(conv2)
+        pool2 = BatchNormalization()(pool2)
 
         # Third Convolution
         conv3 = Conv2D(filters=384, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu',
                        name='conv3')(pool2)
+        conv3 = BatchNormalization()(conv3)
 
         # Extracting mid-level details from conv3 layer to fuse (concatenate) it later with high-level pool5 layer.
         conv3a = Conv2D(filters=256, kernel_size=(2, 2), strides=(2, 2), padding='valid', activation='relu',
                         name='conv3a')(conv3)
+        conv3a = BatchNormalization()(conv3a)
 
         # Fourth Convolution
         conv4 = Conv2D(filters=384, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu',
                        name='conv4')(conv3)
+        conv4 = BatchNormalization()(conv4)
 
         # Fifth Convolution
         conv5 = Conv2D(filters=256, kernel_size=(3, 3), strides=(1, 1), padding='same', activation='relu',
                        name='conv5')(conv4)
         pool5 = MaxPooling2D(pool_size=(3, 3), strides=(2, 2), name='pool5')(conv5)
-
+        pool5 = BatchNormalization()(pool5)
         # Fuse (concatenate) the conv1a, conv3a, pool5 layers
         concat = Concatenate(axis=-1, name='concat_layer')([conv1a, conv3a, pool5])
+        concat = BatchNormalization()(concat)
 
         # Add convolution to reduce the size of concatenated layers
         conv_all = Conv2D(filters=192, kernel_size=(1, 1), strides=(1, 1), padding='valid', name='conv_all')(concat)
@@ -88,8 +99,34 @@ class HyperfaceNetwork:
             self.model.get_layer(layer).set_weights(face_detection_model.get_layer(layer).get_weights())
             print('\nWeights of {0} layer in face detection model is initialized in hyperface model'.format(layer))
 
+    def generator(self, x, y, batch_size=32):
+        L = x.shape[0]
+        while True:
+            batch_start = 0
+            while batch_start < L:
+                batch_x = x[batch_start:batch_start + batch_size, :, :]
+                batch_f = y[0][batch_start:batch_start + batch_size]
+                batch_l = y[1][batch_start:batch_start + batch_size, :]
+                batch_v = y[2][batch_start:batch_start + batch_size, :]
+                batch_p = y[3][batch_start:batch_start + batch_size, :]
+                batch_g = y[4][batch_start:batch_start + batch_size, :]
+                batch_start += batch_size
+                yield batch_x, [batch_f, batch_l, batch_v, batch_p, batch_g]
+
+    def define_callbacks(self):
+        path_checkpoint = 'hyperface_checkpoint.keras'
+        callback_checkpoint = ModelCheckpoint(filepath=path_checkpoint, monitor='val_loss', verbose=1,
+                                              save_weights_only=True, save_best_only=True)
+
+        callback_early_stopping = EarlyStopping(monitor='val_loss', patience=3, verbose=1)
+        log_dir = 'hyperface_logs'
+        callback_tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=0, write_graph=True)
+        return [callback_checkpoint, callback_early_stopping, callback_tensorboard]
+
     def train_hyperface_model(self, X_train, labels, save_path):
         print('\n\nStarted Hyperface model training')
-        self.model.fit(x=X_train, y=labels, steps_per_epoch=1, epochs=2)
+        callbacks = self.define_callbacks()
+        self.model.fit_generator(self.generator(X_train, labels, self.batch_size), steps_per_epoch=self.batch_size,
+                                 epochs=self.epochs, callbacks=callbacks)
         self.model.save(save_path)
         print('\n\nModel training is done and save to {0} file'.format(save_path))

@@ -7,12 +7,12 @@ Created on Sat Jan  5 11:53:36 2019
 """
 
 from face_detection_network import FaceNetwork
-from hyperface_network import HyperfaceNetwork
 from region_proposals import RegionProposals
+from hyperface_network import HyperfaceNetwork
+from custom_loss import LocalizationCustomLoss
 import numpy as np
 import matplotlib.pyplot as plt
 from keras.utils import to_categorical
-from keras import backend as K
 import scipy
 import os
 
@@ -36,7 +36,9 @@ class Hyperface:
         for i, ax in enumerate(axes.flat):
             ax.imshow(images[i])
             face = 'Face' if face_label[i][0] else 'No Face'
-            gender = 'Male' if np.array_equal(gender_label[i], [1, 0]) else 'Female' if np.array_equal(gender_label[i],[0, 1]) else 'No Face'
+            gender = 'Male' if np.array_equal(gender_label[i], [1, 0]) else 'Female' if np.array_equal(gender_label[i],
+                                                                                                       [0,
+                                                                                                        1]) else 'No Face'
             shape = 'Shape: ' + str(images[i].shape)
             xlabel = face + '\n' + gender + '\n' + shape
             ax.set_xlabel(xlabel)
@@ -66,28 +68,21 @@ class Hyperface:
         y_Pose = np.array([pose for pose in self.data[:, 4]])
         print("Pose label shape: ", y_Pose.shape)
 
-        y_Gender = np.array([1 if np.array_equal(gender, [1, 0]) else 0 if np.array_equal(gender, [0, 1]) else 2 for gender in self.data[:, 5]])
+        y_Gender = np.array(
+            [1 if np.array_equal(gender, [1, 0]) else 0 if np.array_equal(gender, [0, 1]) else 2 for gender in
+             self.data[:, 5]])
         y_Gender = to_categorical(y_Gender)[:, :-1]
         print("Gender label shape: ", y_Gender.shape)
         return X_train, y_Face, y_Landmarks, y_Visibility, y_Pose, y_Gender
 
-    def visibility_factor_for_localization_loss(self, visibility):
+    def expanded_visibility(self, visibility):
         expand_visibility = np.tile(np.expand_dims(visibility, axis=2), [1, 1, 2])
         return np.reshape(expand_visibility, [expand_visibility.shape[0], -1])
-
-    def custom_localization_loss(self, visibility):
-        visibility = self.visibility_factor_for_localization_loss(visibility)
-        visibility = K.variable(visibility)
-
-        def wrapper_loss(y_true, y_pred):
-            return K.mean(visibility * K.square(y_pred - y_true), axis=-1)
-
-        return wrapper_loss
 
 
 if __name__ == '__main__':
     hyperface = Hyperface()
-    data = hyperface.get_data('data/data.npy')
+    data = hyperface.get_data('/home/formcept/Downloads/hyperface/hyf_data.npy')
     # hyperface.plot_image_data(num_image=18)
 
     X_train, y_Face, y_Landmarks, y_Visibility, y_Pose, y_Gender = hyperface.get_data_and_print_shapes()
@@ -106,16 +101,20 @@ if __name__ == '__main__':
     print('\nface detection network\n')
     face_network.model.summary()
 
-    localization_loss = hyperface.custom_localization_loss(y_Visibility)
+    # Custom loss for localization
+    visibility = hyperface.expanded_visibility(y_Visibility)
+    custom_loss = LocalizationCustomLoss(batch_size=32)
+    localization_loss = custom_loss.custom_localization_loss(visibility)
 
     hyperface_loss = {'face_detection_out': 'sparse_categorical_crossentropy',
-                      'landmarks_output': localization_loss, 'visibility_output': 'mean_squared_error',
+                      'landmarks_output': localization_loss,
+                      'visibility_output': 'mean_squared_error',
                       'pose_output': 'mean_squared_error', 'gender_output': 'categorical_crossentropy'}
     hyperface_loss_weights = {'face_detection_out': 1, 'landmarks_output': 5,
                               'visibility_output': 0.5, 'pose_output': 5, 'gender_output': 2}
 
-    hyperface_model = HyperfaceNetwork(lr=0.0001, loss=hyperface_loss, loss_weights=hyperface_loss_weights,
-                                       metrics=['accuracy'])
+    hyperface_model = HyperfaceNetwork(lr=0.000001, loss=hyperface_loss, loss_weights=hyperface_loss_weights,
+                                       metrics=['accuracy'], batch_size=32, epochs=3)
     hyperface_model.create_hyperface_network()
     hyperface_model.initialize_weights_of_hyperface_with_face_detection_layer_weights(face_network.model)
     print('\nHyperface model network\n')
