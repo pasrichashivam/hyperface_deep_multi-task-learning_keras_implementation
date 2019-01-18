@@ -13,8 +13,8 @@
 
 ### Points for implementation
 
-* Here 2 model architectures are used
-   1. R-CNN for face landmark localization (face-model).
+* Here 2 model architectures are used.
+1. R-CNN for face landmark localization (face-model).
       * Use Selectivesearch algorithm to select ROI (region of proposals).
       * Bounding box is rescaled to 227x227 which will be the input shape of the model.
       * These region of proposals are the inputs to the R-CNN (Face model) to detect the face in images (Face localization).
