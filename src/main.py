@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 from keras.utils import to_categorical
 import scipy
 import os
-
 os.chdir("..")
 
 train_face_detection_network = True
@@ -82,7 +81,7 @@ class Hyperface:
 
 if __name__ == '__main__':
     hyperface = Hyperface()
-    data = hyperface.get_data('/home/formcept/Downloads/hyperface/hyf_data.npy')
+    data = hyperface.get_data('data/sample_data.npy')
     # hyperface.plot_image_data(num_image=18)
 
     X_train, y_Face, y_Landmarks, y_Visibility, y_Pose, y_Gender = hyperface.get_data_and_print_shapes()
