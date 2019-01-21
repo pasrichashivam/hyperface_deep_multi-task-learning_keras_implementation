@@ -13,24 +13,24 @@
 
 ### Points for implementation
 
-* Here 2 model architectures are used
+* Here 2 model architectures are used.
 1. R-CNN for face landmark localization (face-model).
-  * Use Selectivesearch algorithm to select ROI (region of proposals).
-  * Bounding box is rescaled to 227x227 which will be the input shape of the model.
-  * These region of proposals are the inputs to the R-CNN (Face model) to detect the face in images (Face localization).
-  * In R-CNN base model used is AlexNet architecture to train.
+      * Use Selectivesearch algorithm to select ROI (region of proposals).
+      * Bounding box is rescaled to 227x227 which will be the input shape of the model.
+      * These region of proposals are the inputs to the R-CNN (Face model) to detect the face in images (Face localization).
+      * In R-CNN base model used is AlexNet architecture to train.
 
 ### Face Model Architecture
-  * ![face_model](images/face_model.png?raw=true "face_model")
+   ![face_model](images/face_model.png?raw=true "face_model")
 
 ### Keras Model Architecture
-  * ![keras_face_model](model_graphs/face_model.png?raw=true "keras_face_model")
+   ![keras_face_model](model_graphs/face_model.png?raw=true "keras_face_model")
 
-2. Hyperface model for multi-task learning
-  * Basic model Hyperface is the architecture of AlexNet.
-  * Except convolutional layers, remove all fully-connected (Dense) layers.
-  * Input each bounding box through pre-trained face-model.
-  * Initialize the weights of hyperface layers with common face-model layer weights.
+   2. Hyperface model for multi-task learning.
+      * Basic model Hyperface is the architecture of AlexNet.
+      * Except convolutional layers, remove all fully-connected (Dense) layers.
+      * Input each bounding box through pre-trained face-model.
+      * Initialize the weights of hyperface layers with common face-model layer weights.
   * *Classification and regression*
     * following 5 networks are there:
       1. Face Detection: (2 outputs Yes / No)
@@ -41,10 +41,10 @@
     * Each network is connected to FC- layer with 512 units, followed by anothe Dense layer having units correponding to each task above mentioned.
 
 ### Hyperface architecture
-  * ![hyperface_model](images/hyperface_model.png?raw=true "hyperface_model")
+   ![hyperface_model](images/hyperface_model.png?raw=true "hyperface_model")
 
 ### Keras Model Architecture
-  * ![keras_hyperface_model](model_graphs/hyperface_model.png?raw=true "keras_hyperface_model")
+   ![keras_hyperface_model](model_graphs/hyperface_model.png?raw=true "keras_hyperface_model")
 
 ### Cost functions for different tasks.
   1. Face Detection: Cross Entropy
