@@ -56,7 +56,7 @@
 ## Running the source code.
 * install the packages in requirements file using command.
   > pip install -r requirements.txt
-* Move inside any Algorithm model and run it using command.
+* Move inside src folder and run it using command.
   > python src/main.py
 
 
